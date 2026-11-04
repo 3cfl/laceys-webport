@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lacey's Flash Games</title><link rel="icon" href="data:,"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100%;height:100%;outline:none}#status{position:fixed;inset:0;display:grid;place-items:center;background:#170f1c;color:#ffd0e8;font:18px sans-serif;text-align:center;white-space:pre-wrap;padding:24px;box-sizing:border-box}</style></head><body><canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas><div id="status" role="status">Loading Lacey's Flash Games…</div><script>
+const MANIFEST="https://cdn.jsdelivr.net/gh/3cfl/laceys-webport@33ef7f6f8ac6e59edbba477b11af829569300867/manifest.json";
+const overlay=document.getElementById('status'),canvas=document.getElementById('canvas');
+function fail(error){overlay.style.display='grid';overlay.textContent='Unable to load the game.\n'+(error.message||error);console.error(error)}
+window.addEventListener('unhandledrejection',e=>fail(e.reason));
+window.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()});
+canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fail(Error('Graphics context lost. Reload to continue.'))});
+function hex(buffer){return Array.from(new Uint8Array(buffer),n=>n.toString(16).padStart(2,'0')).join('')}
+async function boot(){
+ if(!window.WebAssembly)throw Error('WebAssembly is required.');
+ const response=await fetch(MANIFEST);if(!response.ok)throw Error('Manifest HTTP '+response.status);
+ const manifest=await response.json();let loaded=0,total=manifest.pck.size+manifest.wasm.size;
+ async function download(part){let last;for(let attempt=0;attempt<3;attempt++){try{const response=await fetch(manifest.bases[part.repo]+part.name,{mode:'cors'});if(!response.ok)throw Error(part.name+' HTTP '+response.status);const data=await response.arrayBuffer();if(data.byteLength!==part.size)throw Error(part.name+' incomplete');if(crypto.subtle&&hex(await crypto.subtle.digest('SHA-256',data))!==part.sha256)throw Error(part.name+' failed integrity check');return data}catch(error){last=error}}throw last}
+ async function join(file){const result=new Uint8Array(file.size);let offset=0;for(const part of file.parts){const data=new Uint8Array(await download(part));result.set(data,offset);offset+=data.length;loaded+=data.length;overlay.textContent="Loading Lacey's Flash Games… "+Math.floor(100*loaded/total)+'%';}if(offset!==file.size)throw Error('Incomplete game');return result}
+ const wasm=await join(manifest.wasm);window.__ivyWasm=wasm;
+ window.__ivyWorklets={};
+ for(const [key,name] of [['audio','index.audio.worklet.js'],['position','index.audio.position.worklet.js']])window.__ivyWorklets[key]=URL.createObjectURL(new Blob([await download(manifest.files[name])],{type:'application/javascript'}));
+ const source=await download(manifest.files['index.js']);const script=document.createElement('script');script.textContent=new TextDecoder().decode(source);document.head.appendChild(script);
+ const engine=new Engine({executable:'index',canvas,canvasResizePolicy:2,focusCanvas:true,experimentalVK:true,ensureCrossOriginIsolationHeaders:false,persistentPaths:['/userfs'],onPrint:console.log.bind(console),onPrintError:console.error.bind(console)});
+ await engine.init('index');window.__ivyWasm=null;
+ let pack=await join(manifest.pck);await engine.preloadFile(pack.buffer,'index.pck');pack=null;
+ overlay.textContent='Starting game…';await engine.start({args:['--main-pack','index.pck']});overlay.style.display='none';canvas.focus();
+}
+boot().catch(fail);
+</script></body></html>
