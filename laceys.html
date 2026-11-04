@@ -14,7 +14,7 @@ async function boot(){
  async function join(file){const result=new Uint8Array(file.size);let offset=0;for(const part of file.parts){const data=new Uint8Array(await download(part));result.set(data,offset);offset+=data.length;loaded+=data.length;overlay.textContent="Loading Lacey's Flash Games… "+Math.floor(100*loaded/total)+'%';}if(offset!==file.size)throw Error('Incomplete game');return result}
  const wasm=await join(manifest.wasm);window.__ivyWasm=wasm;
  window.__ivyWorklets={};
- for(const [key,name] of [['audio','index.audio.worklet.js'],['position','index.audio.position.worklet.js']])window.__ivyWorklets[key]=URL.createObjectURL(new Blob([await download(manifest.files[name])],{type:'application/javascript'}));
+ for(const [key,name] of [['audio','index.audio.worklet.js'],['position','index.audio.position.worklet.js']]){const part=manifest.files[name],data=await download(part),url=new URL(manifest.bases[part.repo]+name,location.href);window.__ivyWorklets[key]=url.origin===location.origin?url.href:URL.createObjectURL(new Blob([data],{type:'application/javascript'}));}
  const source=await download(manifest.files['index.js']);const script=document.createElement('script');script.textContent=new TextDecoder().decode(source);document.head.appendChild(script);
  const engine=new Engine({executable:'index',canvas,canvasResizePolicy:2,focusCanvas:true,experimentalVK:true,ensureCrossOriginIsolationHeaders:false,persistentPaths:['/userfs'],onPrint:console.log.bind(console),onPrintError:console.error.bind(console)});
  await engine.init('index');window.__ivyWasm=null;
